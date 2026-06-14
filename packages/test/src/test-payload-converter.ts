@@ -1,7 +1,6 @@
 /* eslint @typescript-eslint/no-non-null-assertion: 0 */
 import { randomUUID } from 'crypto';
 import test from 'ava';
-import { WorkflowClient } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
   defaultPayloadConverter,
@@ -20,13 +19,8 @@ import {
   ProtobufBinaryPayloadConverter,
   ProtobufJsonPayloadConverter,
 } from '@temporalio/common/lib/protobufs';
-import { DefaultLogger, Runtime } from '@temporalio/worker';
+import { RUN_INTEGRATION_TESTS } from '@temporalio/test-helpers/lib/flags';
 import root from '../protos/root'; // eslint-disable-line import/default
-import { RUN_INTEGRATION_TESTS, Worker } from './helpers';
-import { defaultOptions } from './mock-native-worker';
-import { messageInstance } from './payload-converters/proto-payload-converter';
-import { protobufWorkflow } from './workflows/protobufs';
-import { echoBinaryProtobuf } from './workflows/echo-binary-protobuf';
 
 test('UndefinedPayloadConverter converts from undefined only', (t) => {
   const converter = new UndefinedPayloadConverter();
@@ -189,6 +183,21 @@ test(`SearchAttributePayloadConverter doesn't fail if Array.prototype contains e
 
 if (RUN_INTEGRATION_TESTS) {
   test('Worker throws decoding proto JSON without WorkerOptions.dataConverter', async (t) => {
+    const [
+      { WorkflowClient },
+      { DefaultLogger, Runtime },
+      { Worker },
+      { defaultOptions },
+      { messageInstance },
+      { protobufWorkflow },
+    ] = await Promise.all([
+      import('@temporalio/client'),
+      import('@temporalio/worker'),
+      import('./helpers'),
+      import('./mock-native-worker'),
+      import('./payload-converters/proto-payload-converter'),
+      import('./workflows/protobufs'),
+    ]);
     let markErrorThrown: () => void;
     const expectedErrorWasThrown = new Promise<void>((resolve) => {
       markErrorThrown = resolve;
@@ -233,6 +242,12 @@ if (RUN_INTEGRATION_TESTS) {
   });
 
   test('Worker encodes/decodes a protobuf containing a binary array', async (t) => {
+    const [{ WorkflowClient }, { Worker }, { defaultOptions }, { echoBinaryProtobuf }] = await Promise.all([
+      import('@temporalio/client'),
+      import('./helpers'),
+      import('./mock-native-worker'),
+      import('./workflows/echo-binary-protobuf'),
+    ]);
     const binaryInstance = root.BinaryMessage.create({ data: encode('abc') });
     const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
     const taskQueue = `${__filename}/${t.title}`;

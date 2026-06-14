@@ -49,17 +49,19 @@ A and B
 
 ## Current solution
 
-- Use `protobufjs` with `proto3-json-serializer`
-- Have users use runtime-loaded messages (not generated classes) and `Class.create` (not `new Class()`, which doesn't work with runtime-loaded messages)
-- Patch `json-module` output (which adds `nested` attributes to lowercase namespaces [which causes a TS error](https://github.com/protobufjs/protobuf.js/issues/1014))
+- The SDK service protos in `@temporalio/proto` ship a `protobufjs` `static-module` runtime generated as `packages/proto/protos/static-module.js`.
+- `packages/proto/protos/root.js` wraps that generated static root with `patchProtobufRoot()` so existing namespace exports, message statics, service `.create(...)`, and `lookupType`/`lookupService` style helpers remain available.
+- This fork intentionally does not ship the SDK proto runtime through `json-module` + `protobufjs/light`; Cloudflare-targeted client paths must be able to import and exercise SDK protos without runtime string code generation.
+- Optional user protobuf payload converters still accept legacy protobufjs roots. Those user-supplied roots may use protobufjs reflection in Node-style environments, but the SDK converter module itself must import without `eval`, `new Function`, or `constructor.constructor`.
+- The protobuf JSON payload converter uses protobufjs `toObject`/`fromObject` with base64 bytes for user protobuf messages rather than a global `Buffer` lookup through dynamic code generation.
 
 ```ts
-// json-module.js generated with:
-// pbjs -t json-module -w commonjs -o json-module.js *.proto
+// static-module.js generated with:
+// pbjs -t static-module -w commonjs -o static-module.js *.proto
 
 // protos/root.js
 const { patchProtobufRoot } = require('@temporalio/common');
-const unpatchedRoot = require('./json-module');
+const unpatchedRoot = require('./static-module');
 module.exports = patchProtobufRoot(unpatchedRoot);
 
 // root.d.ts generated with:
@@ -95,6 +97,25 @@ export async function protoWorkflow(input: foo.bar.ProtoInput): Promise<foo.bar.
   return foo.bar.ProtoResult.create({ sentence: `Name is ${input.name}` });
 }
 ```
+
+Regenerate SDK protos with:
+
+```bash
+pnpm --filter @temporalio/proto run build
+```
+
+Run the focused Cloudflare protobuf eval checks with:
+
+```bash
+pnpm --filter @temporalio/proto run build
+pnpm --filter @temporalio/common run build
+pnpm --filter @temporalio/client run build
+pnpm --filter @temporalio/cloud run build
+pnpm --filter @temporalio/test run build
+pnpm -C packages/test exec ava ./lib/test-cloudflare-protobuf-no-eval.js
+```
+
+The focused test covers the exported proto facade contract, a Cloudflare-style no-string-codegen smoke test for `@temporalio/proto`, `@temporalio/common/lib/proto-utils`, and `@temporalio/cloud`, and a static scan of Cloudflare-targeted source/build outputs.
 
 We originally were thinking of this, but the namespaces in `json-module.js` get lost through `patchProtobufRoot()`:
 

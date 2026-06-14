@@ -1,0 +1,158 @@
+{
+  "stage": "interview",
+  "title": "Cloudflare Workers protobuf eval compatibility",
+  "goalSlug": "cloudflare-workers-protobuf-no-eval",
+  "questions": [
+    {
+      "id": "runtime_scope",
+      "prompt": "Which SDK surfaces should the implementation treat as must-pass for Cloudflare Workers compatibility?",
+      "description": "The research found separate protobuf surfaces in service protos, common proto JSON utilities, cloud operations, optional user protobuf payload converters, and the Node-native Temporal Worker runtime.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Make the client-facing packages safe for Cloudflare Workers: `@temporalio/client`, shared `@temporalio/common` proto utilities used by the client path, and `@temporalio/cloud`; preserve the existing workflow bundle boundary. Assess optional protobuf payload converters, but keep the Node-native `@temporalio/worker` runtime out of scope.",
+      "recommendedOptionIds": [
+        "client-common-cloud",
+        "workflow-bundle-boundary",
+        "assess-protobuf-payload"
+      ],
+      "options": [
+        {
+          "id": "client-common-cloud",
+          "label": "Client/common/cloud packages"
+        },
+        {
+          "id": "workflow-bundle-boundary",
+          "label": "Preserve workflow bundle boundary"
+        },
+        {
+          "id": "assess-protobuf-payload",
+          "label": "Assess optional payload protobufs"
+        },
+        {
+          "id": "protobuf-payload-must-pass",
+          "label": "Payload protobufs must pass"
+        },
+        {
+          "id": "worker-runtime",
+          "label": "Include Worker runtime"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "migration_strategy",
+      "prompt": "What migration strategy should the plan prefer?",
+      "description": "The main implementation decision is whether to replace protobufjs runtime reflection, adapt protobufjs, or introduce a static generated runtime behind existing package APIs.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Prefer a staged, static generated protobuf implementation behind the existing `@temporalio/proto` facade. Keep public imports and TypeScript-facing shapes stable where practical, isolate generated output and adapters, and avoid relying on Cloudflare's startup-only eval compatibility flag.",
+      "options": [
+        {
+          "id": "static-runtime-behind-facade",
+          "label": "Static runtime behind facade"
+        },
+        {
+          "id": "patch-protobufjs",
+          "label": "Patch protobufjs"
+        },
+        {
+          "id": "full-protobuf-es-migration",
+          "label": "Full Protobuf-ES migration"
+        },
+        {
+          "id": "cloudflare-flag-only",
+          "label": "Cloudflare flag only"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "api_compatibility",
+      "prompt": "What compatibility bar should the implementation plan hold?",
+      "description": "This determines whether the plan can alter generated message APIs or must preserve existing `@temporalio/proto` consumers.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Preserve public package imports, exported namespaces, request/response type aliases, and service client behavior as much as practical. Private generated internals, build scripts, and implementation details may change if the facade keeps downstream code stable.",
+      "options": [
+        {
+          "id": "preserve-public-api",
+          "label": "Preserve public API"
+        },
+        {
+          "id": "minor-compat-breaks",
+          "label": "Allow minor breaks"
+        },
+        {
+          "id": "major-api-migration",
+          "label": "Allow major migration"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "upstream_mergeability",
+      "prompt": "How should the plan optimize for merging upstream Temporal SDK changes?",
+      "description": "This fork should remain easy to rebase against the official SDK.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Keep upstream source edits narrow, avoid rewriting unrelated packages, keep generated files and generation scripts clearly separated, add facade/adapters instead of broad call-site churn, and document any fork-only divergence.",
+      "recommendedOptionIds": [
+        "narrow-source-edits",
+        "isolated-generated-layer",
+        "adapter-over-callsite-churn",
+        "document-divergence"
+      ],
+      "options": [
+        {
+          "id": "narrow-source-edits",
+          "label": "Narrow source edits"
+        },
+        {
+          "id": "isolated-generated-layer",
+          "label": "Isolated generated layer"
+        },
+        {
+          "id": "adapter-over-callsite-churn",
+          "label": "Adapters over churn"
+        },
+        {
+          "id": "document-divergence",
+          "label": "Document fork divergence"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "verification_bar",
+      "prompt": "What verification should be required before the implementation is considered done?",
+      "description": "Cloudflare compatibility needs more than normal unit tests because the failure is runtime-policy-specific.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Require normal package tests/builds plus a Cloudflare-style smoke test that imports and exercises the client-facing protobuf path in an environment where `eval` and `new Function` are disallowed. Also add a static or bundled-artifact scan for dynamic code generation patterns in Cloudflare-targeted output.",
+      "recommendedOptionIds": [
+        "unit-tests",
+        "package-build",
+        "cloudflare-smoke",
+        "dynamic-code-scan"
+      ],
+      "options": [
+        {
+          "id": "unit-tests",
+          "label": "Focused unit tests"
+        },
+        {
+          "id": "package-build",
+          "label": "Package build"
+        },
+        {
+          "id": "cloudflare-smoke",
+          "label": "Cloudflare smoke test"
+        },
+        {
+          "id": "dynamic-code-scan",
+          "label": "Dynamic code scan"
+        },
+        {
+          "id": "real-deploy",
+          "label": "Real Worker deploy"
+        }
+      ],
+      "required": true
+    }
+  ]
+}

@@ -1,6 +1,4 @@
-import { fromProto3JSON, toProto3JSON } from 'proto3-json-serializer';
 import * as proto from '@temporalio/proto';
-import { patchProtobufRoot } from '@temporalio/proto/lib/patch-protobuf-root';
 
 export type History = proto.temporal.api.history.v1.IHistory;
 export type Payload = proto.temporal.api.common.v1.IPayload;
@@ -18,11 +16,6 @@ export interface JSONPayload {
    */
   data?: string | null;
 }
-
-// Cast to any because the generated proto module types are missing the lookupType method
-const patched = patchProtobufRoot(proto) as any;
-const historyType = patched.lookupType('temporal.api.history.v1.History');
-const payloadType = patched.lookupType('temporal.api.common.v1.Payload');
 
 /**
  * Convert a proto JSON representation of History to a valid History object
@@ -101,11 +94,7 @@ export function historyFromJSON(history: unknown): History {
   if (typeof history !== 'object' || history == null || !Array.isArray((history as any).events)) {
     throw new TypeError('Invalid history, expected an object with an array of events');
   }
-  const loaded = fromProto3JSON(historyType, fixHistory(history));
-  if (loaded === null) {
-    throw new TypeError('Invalid history');
-  }
-  return loaded as any;
+  return proto.temporal.api.history.v1.History.fromObject(fromProto3JSONCompatible(fixHistory(history))) as any;
 }
 
 /**
@@ -113,17 +102,14 @@ export function historyFromJSON(history: unknown): History {
  * string that adheres to the same norm as JSON history files produced by other Temporal tools.
  */
 export function historyToJSON(history: History): string {
-  const protoJson = toProto3JSON(proto.temporal.api.history.v1.History.fromObject(history) as any);
-  return JSON.stringify(fixBuffers(protoJson), null, 2);
+  const protoJson = proto.temporal.api.history.v1.History.toObject(
+    proto.temporal.api.history.v1.History.fromObject(history),
+    { bytes: String, enums: String, longs: String }
+  );
+  return JSON.stringify(toProto3JSONCompatible(protoJson), null, 2);
 }
 
-/**
- * toProto3JSON doesn't correctly handle some of our "bytes" fields, passing them untouched to the
- * output, after which JSON.stringify() would convert them to an array of numbers. As a workaround,
- * recursively walk the object and convert all Buffer instances to base64 strings. Note this only
- * works on proto3-json-serializer v2.0.0. v2.0.2 throws an error before we even get the chance
- * to fix the buffers. See https://github.com/googleapis/proto3-json-serializer-nodejs/issues/103.
- */
+/** Recursively convert bytes values to base64 strings for proto JSON compatibility. */
 export function fixBuffers<T>(e: T): T {
   if (e && typeof e === 'object') {
     if (e instanceof Buffer) return e.toString('base64') as any;
@@ -138,16 +124,135 @@ export function fixBuffers<T>(e: T): T {
  * Convert from protobuf payload to JSON
  */
 export function payloadToJSON(payload: Payload): JSONPayload {
-  return fixBuffers(toProto3JSON(patched.temporal.api.common.v1.Payload.create(payload))) as any;
+  return proto.temporal.api.common.v1.Payload.toObject(proto.temporal.api.common.v1.Payload.fromObject(payload), {
+    bytes: String,
+    longs: String,
+  }) as any;
 }
 
 /**
  * Convert from JSON to protobuf payload
  */
 export function JSONToPayload(json: JSONPayload): Payload {
-  const loaded = fromProto3JSON(payloadType, json as any);
-  if (loaded === null) {
-    throw new TypeError('Invalid payload');
+  return proto.temporal.api.common.v1.Payload.fromObject(json) as any;
+}
+
+function fromProto3JSONCompatible<T>(value: T, key?: string): T {
+  if (typeof value === 'string') {
+    if (key != null && isTimestampKey(key) && isTimestampJSON(value)) {
+      return timestampFromJSON(value) as T;
+    }
+    if (key != null && isDurationKey(key) && isDurationJSON(value)) {
+      return durationFromJSON(value) as T;
+    }
+    return value;
   }
-  return loaded as any;
+
+  if (Array.isArray(value)) {
+    return value.map((item) => fromProto3JSONCompatible(item, key)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+        entryKey,
+        fromProto3JSONCompatible(entryValue, entryKey),
+      ])
+    ) as T;
+  }
+
+  return value;
+}
+
+function toProto3JSONCompatible<T>(value: T, key?: string): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => toProto3JSONCompatible(item, key)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    if (key != null && isTimestampKey(key) && isWellKnownTimeObject(value)) {
+      return timestampToJSON(value) as T;
+    }
+    if (key != null && isDurationKey(key) && isWellKnownTimeObject(value)) {
+      return durationToJSON(value) as T;
+    }
+
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+        entryKey,
+        toProto3JSONCompatible(entryValue, entryKey),
+      ])
+    ) as T;
+  }
+
+  return value;
+}
+
+function isTimestampKey(key: string): boolean {
+  return key.endsWith('Time') || key.endsWith('Timestamp');
+}
+
+function isDurationKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  return (
+    lower.endsWith('duration') ||
+    lower.endsWith('timeout') ||
+    lower.endsWith('interval') ||
+    lower.endsWith('backoff') ||
+    lower.endsWith('delay')
+  );
+}
+
+function isTimestampJSON(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value);
+}
+
+function isDurationJSON(value: string): boolean {
+  return /^-?\d+(?:\.\d{1,9})?s$/.test(value);
+}
+
+function timestampFromJSON(value: string): { seconds: number; nanos: number } {
+  const timestampMatch = value.match(/\.(\d{1,9})Z$/);
+  const seconds = Math.floor(Date.parse(value) / 1000);
+  const nanos = timestampMatch ? Number((timestampMatch[1] ?? '').padEnd(9, '0')) : 0;
+  return { seconds, nanos };
+}
+
+function durationFromJSON(value: string): { seconds: number; nanos: number } {
+  const match = value.match(/^(-?)(\d+)(?:\.(\d{1,9}))?s$/);
+  if (match == null) {
+    throw new TypeError(`Invalid duration: ${value}`);
+  }
+  const sign = match[1] === '-' ? -1 : 1;
+  return {
+    seconds: sign * Number(match[2] ?? 0),
+    nanos: sign * Number((match[3] ?? '').padEnd(9, '0')),
+  };
+}
+
+function timestampToJSON(value: Record<string, unknown>): string {
+  const seconds = Number(value.seconds ?? 0);
+  const nanos = Number(value.nanos ?? 0);
+  const date = new Date(seconds * 1000);
+  const base = date.toISOString().replace(/\.\d{3}Z$/, '');
+  return nanos === 0 ? `${base}Z` : `${base}.${formatNanos(nanos)}Z`;
+}
+
+function durationToJSON(value: Record<string, unknown>): string {
+  const seconds = Number(value.seconds ?? 0);
+  const nanos = Number(value.nanos ?? 0);
+  if (nanos === 0) return `${seconds}s`;
+
+  const sign = seconds < 0 || nanos < 0 ? '-' : '';
+  const absSeconds = Math.abs(seconds);
+  const absNanos = Math.abs(nanos);
+  return `${sign}${absSeconds}.${formatNanos(absNanos)}s`;
+}
+
+function formatNanos(nanos: number): string {
+  return String(nanos).padStart(9, '0').replace(/0+$/, '');
+}
+
+function isWellKnownTimeObject(value: object): value is Record<string, unknown> {
+  return 'seconds' in value || 'nanos' in value;
 }

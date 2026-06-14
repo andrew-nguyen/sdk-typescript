@@ -7,8 +7,8 @@ import * as pbjs from 'protobufjs-cli/pbjs';
 import * as pbts from 'protobufjs-cli/pbts';
 
 const outputDir = resolve(__dirname, '../protos');
-const jsOutputFile = resolve(outputDir, 'json-module.js');
-const tempFile = resolve(outputDir, 'temp.js');
+const staticModuleOutputFile = resolve(outputDir, 'static-module.js');
+const legacyJsonModuleOutputFile = resolve(outputDir, 'json-module.js');
 
 const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/crates/common/protos');
 
@@ -35,28 +35,23 @@ async function compileProtos(dtsOutputFile: string, ...args: string[]) {
     ...args,
   ];
 
-  console.log(`Creating protobuf JS definitions`);
-  await promisify(pbjs.main)([...pbjsArgs, '--target', 'json-module', '--out', jsOutputFile]);
+  console.log(`Creating protobuf static JS definitions`);
+  await promisify(pbjs.main)([...pbjsArgs, '--target', 'static-module', '--out', staticModuleOutputFile]);
+
+  // pbts internally calls jsdoc, which do strict validation of jsdoc tags.
+  // Unfortunately, some protobuf comment about cron syntax contains the
+  // "@every" shorthand at the begining of a line, making it appear as a
+  // (invalid) jsdoc tag. Similarly, docusaurus trips on <interval> and other
+  // things that looks like html tags. We fix both cases by rewriting these
+  // using markdown "inline code" syntax.
+  let staticModuleContent = await readFile(staticModuleOutputFile, 'utf8');
+  staticModuleContent = staticModuleContent.replace(/(@(?:yearly|monthly|weekly|daily|hourly|every))/g, '`$1`');
+  staticModuleContent = staticModuleContent.replace(/<((?:interval|phase|timezone)(?: [^>]+)?)>/g, '`<$1>`');
+  await writeFile(staticModuleOutputFile, staticModuleContent, 'utf-8');
 
   console.log(`Creating protobuf TS definitions`);
-  try {
-    await promisify(pbjs.main)([...pbjsArgs, '--target', 'static-module', '--out', tempFile]);
-
-    // pbts internally calls jsdoc, which do strict validation of jsdoc tags.
-    // Unfortunately, some protobuf comment about cron syntax contains the
-    // "@every" shorthand at the begining of a line, making it appear as a
-    // (invalid) jsdoc tag. Similarly, docusaurus trips on <interval> and other
-    // things that looks like html tags. We fix both cases by rewriting these
-    // using markdown "inline code" syntax.
-    let tempFileContent = await readFile(tempFile, 'utf8');
-    tempFileContent = tempFileContent.replace(/(@(?:yearly|monthly|weekly|daily|hourly|every))/g, '`$1`');
-    tempFileContent = tempFileContent.replace(/<((?:interval|phase|timezone)(?: [^>]+)?)>/g, '`<$1>`');
-    await writeFile(tempFile, tempFileContent, 'utf-8');
-
-    await promisify(pbts.main)(['--out', dtsOutputFile, tempFile]);
-  } finally {
-    await rm(tempFile);
-  }
+  await promisify(pbts.main)(['--out', dtsOutputFile, staticModuleOutputFile]);
+  await rm(legacyJsonModuleOutputFile, { force: true });
 }
 
 async function main() {
@@ -65,7 +60,7 @@ async function main() {
   const protoFiles = glob.sync('**/*.proto', { cwd: protoBaseDir, absolute: true, root: '' });
   const protosMTime = Math.max(...protoFiles.map(mtime));
   const compileScriptMTime = mtime(resolve(__dirname, __filename));
-  const genMTime = mtime(jsOutputFile);
+  const genMTime = mtime(staticModuleOutputFile);
 
   if (protosMTime < genMTime && compileScriptMTime < genMTime) {
     console.log('Assuming protos are up to date');
