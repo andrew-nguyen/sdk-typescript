@@ -62,10 +62,13 @@ we recommend that production applications only use Node's Active LTS or Maintena
 
 ### Other JavaScript runtime environments
 
-The `@temporalio/client` package is believed to work properly on most server-side JavaScript
-environments, including Bun, Deno, and Cloudflare Workers. Note however that we do not run
-regular tests of the SDK on any other JavaScript runtime environments, and therefore can't
-provide official support for such execution environments. Use at your own risk!
+The default `@temporalio/client` package entry is Node-oriented because it uses the SDK's Node grpc-js transport.
+This fork also provides a Cloudflare Workers-compatible client subpath, `@temporalio/client/cloudflare`, for high-level
+client application code that supplies an explicit `CloudflareConnection`. That path uses HTTPS `fetch` to a native
+gRPC bridge and does not load the Node grpc-js transport in Worker-targeted import tests.
+
+Other server-side JavaScript environments such as Bun and Deno may work for client-level features, but we do not run
+regular tests of the SDK on those runtimes and therefore can't provide official support for them. Use at your own risk.
 
 Worker-level features (i.e. running Workflows, Activities, and Nexus Operations) of the Temporal
 TypeScript SDK rely extensively on several Node-specific features, including:

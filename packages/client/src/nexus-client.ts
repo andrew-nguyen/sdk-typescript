@@ -1,4 +1,3 @@
-import { status as grpcStatus } from '@grpc/grpc-js';
 import type * as nexus from 'nexus-rpc';
 import { v4 as uuid4 } from 'uuid';
 import { composeInterceptors } from '@temporalio/common/lib/interceptors';
@@ -23,6 +22,7 @@ import { decode } from '@temporalio/common/lib/encoding';
 import type { BaseClientOptions, LoadedWithDefaults, WithDefaults } from './base-client';
 import { BaseClient, defaultBaseClientOptions } from './base-client';
 import { isGrpcServiceError, ServiceError } from './errors';
+import { grpcStatus } from './grpc-status';
 import { rethrowKnownErrorTypes, extractNexusOperationAlreadyStartedRunId } from './helpers';
 import type {
   CancelNexusOperationInput,

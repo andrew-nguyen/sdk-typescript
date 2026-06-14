@@ -6,12 +6,19 @@ import { normalizeTlsConfig, normalizeGrpcEndpointAddress } from '@temporalio/co
 import { filterNullAndUndefined } from '@temporalio/common/lib/internal-workflow';
 import type { Duration } from '@temporalio/common/lib/time';
 import { msOptionalToNumber } from '@temporalio/common/lib/time';
-import { type temporal } from '@temporalio/proto';
 import { isGrpcServiceError, ServiceError } from './errors';
 import { defaultGrpcRetryOptions, makeGrpcRetryInterceptor } from './grpc-retry';
-import pkg from './pkg';
 import type { CallContext, Metadata } from './types';
-import { HealthService, OperatorService, TestService, WorkflowService } from './types';
+import type { HealthService, OperatorService, TestService, WorkflowService } from './types';
+import {
+  addDefaultClientMetadata,
+  createTemporalServiceStubs,
+  makeApiKeyFnRef,
+  mergeRpcMetadata,
+  setApiKeyFnRef,
+  withNamespaceHeaderInjector,
+  type ConnectionPlugin as GenericConnectionPlugin,
+} from './connection-shared';
 
 /**
  * The default Temporal Server's TCP port for public gRPC connections.
@@ -140,6 +147,8 @@ export interface ConnectionOptions {
    */
   plugins?: ConnectionPlugin[];
 }
+
+export type ConnectionPlugin = GenericConnectionPlugin<ConnectionOptions>;
 
 export type ConnectionOptionsWithDefaults = Required<
   Omit<ConnectionOptions, 'tls' | 'connectTimeout' | 'callCredentials' | 'apiKey'>
@@ -342,19 +351,9 @@ export class Connection {
 
   protected static createCtorOptions(options: ConnectionOptions): ConnectionCtorOptions {
     const normalizedOptions = normalizeGRPCConfig(options);
-    const apiKeyFnRef: { fn?: () => string } = {};
-    if (normalizedOptions.apiKey) {
-      if (typeof normalizedOptions.apiKey === 'string') {
-        const apiKey = normalizedOptions.apiKey;
-        apiKeyFnRef.fn = () => apiKey;
-      } else {
-        apiKeyFnRef.fn = normalizedOptions.apiKey;
-      }
-    }
+    const apiKeyFnRef = makeApiKeyFnRef(normalizedOptions.apiKey);
     const optionsWithDefaults = addDefaults(normalizedOptions);
-    // Allow overriding this
-    optionsWithDefaults.metadata['client-name'] ??= 'temporal-typescript';
-    optionsWithDefaults.metadata['client-version'] ??= pkg.version;
+    addDefaultClientMetadata(optionsWithDefaults.metadata);
 
     const client = new this.Client(
       optionsWithDefaults.address,
@@ -362,57 +361,26 @@ export class Connection {
       optionsWithDefaults.channelArgs
     );
     const callContextStorage = new AsyncLocalStorage<CallContext>();
-
-    const workflowRpcImpl = this.generateRPCImplementation({
-      serviceName: 'temporal.api.workflowservice.v1.WorkflowService',
-      client,
-      callContextStorage,
-      interceptors: optionsWithDefaults?.interceptors,
-      staticMetadata: optionsWithDefaults.metadata,
-      apiKeyFnRef,
-    });
-    const workflowService = WorkflowService.create(workflowRpcImpl, false, false);
-
-    const operatorRpcImpl = this.generateRPCImplementation({
-      serviceName: 'temporal.api.operatorservice.v1.OperatorService',
-      client,
-      callContextStorage,
-      interceptors: optionsWithDefaults?.interceptors,
-      staticMetadata: optionsWithDefaults.metadata,
-      apiKeyFnRef,
-    });
-    const operatorService = OperatorService.create(operatorRpcImpl, false, false);
-
-    let testService: TestService | undefined = undefined;
-    if ((options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol]?.supportsTestService) {
-      const testRpcImpl = this.generateRPCImplementation({
-        serviceName: 'temporal.api.testservice.v1.TestService',
-        client,
-        callContextStorage,
-        interceptors: optionsWithDefaults?.interceptors,
-        staticMetadata: optionsWithDefaults.metadata,
-        apiKeyFnRef,
-      });
-      testService = TestService.create(testRpcImpl, false, false);
-    }
-
-    const healthRpcImpl = this.generateRPCImplementation({
-      serviceName: 'grpc.health.v1.Health',
-      client,
-      callContextStorage,
-      interceptors: optionsWithDefaults?.interceptors,
-      staticMetadata: optionsWithDefaults.metadata,
-      apiKeyFnRef,
-    });
-    const healthService = HealthService.create(healthRpcImpl, false, false);
+    const services = createTemporalServiceStubs(
+      (serviceName) =>
+        this.generateRPCImplementation({
+          serviceName,
+          client,
+          callContextStorage,
+          interceptors: optionsWithDefaults?.interceptors,
+          staticMetadata: optionsWithDefaults.metadata,
+          apiKeyFnRef,
+        }),
+      {
+        supportsTestService: (options as InternalConnectionOptions)?.[InternalConnectionOptionsSymbol]
+          ?.supportsTestService,
+      }
+    );
 
     return {
       client,
       callContextStorage,
-      workflowService,
-      operatorService,
-      testService,
-      healthService,
+      ...services,
       options: optionsWithDefaults,
       apiKeyFnRef,
     };
@@ -489,7 +457,7 @@ export class Connection {
   }: ConnectionCtorOptions) {
     this.options = options;
     this.client = client;
-    this.workflowService = this.withNamespaceHeaderInjector(workflowService);
+    this.workflowService = withNamespaceHeaderInjector(workflowService, (metadata, fn) => this.withMetadata(metadata, fn));
     this.operatorService = operatorService;
     this.testService = testService;
     this.healthService = healthService;
@@ -513,17 +481,9 @@ export class Connection {
     ) => {
       const metadataContainer = new grpc.Metadata();
       const { metadata, deadline, abortSignal } = callContextStorage.getStore() ?? {};
-      if (apiKeyFnRef.fn) {
-        const apiKey = apiKeyFnRef.fn();
-        if (apiKey) metadataContainer.set('Authorization', `Bearer ${apiKey}`);
-      }
-      for (const [k, v] of Object.entries(staticMetadata)) {
+      const requestMetadata = mergeRpcMetadata(staticMetadata, metadata, apiKeyFnRef);
+      for (const [k, v] of Object.entries(requestMetadata)) {
         metadataContainer.set(k, v);
-      }
-      if (metadata != null) {
-        for (const [k, v] of Object.entries(metadata)) {
-          metadataContainer.set(k, v);
-        }
       }
 
       const call = client.makeUnaryRequest(
@@ -648,14 +608,7 @@ export class Connection {
    * callback function may be provided.
    */
   setApiKey(apiKey: string | (() => string)): void {
-    if (typeof apiKey === 'string') {
-      if (apiKey === '') {
-        throw new TypeError('`apiKey` must not be an empty string');
-      }
-      this.apiKeyFnRef.fn = () => apiKey;
-    } else {
-      this.apiKeyFnRef.fn = apiKey;
-    }
+    setApiKeyFnRef(this.apiKeyFnRef, apiKey);
   }
 
   /**
@@ -685,42 +638,4 @@ export class Connection {
     this.client.close();
     this.callContextStorage.disable();
   }
-
-  private withNamespaceHeaderInjector(
-    workflowService: temporal.api.workflowservice.v1.WorkflowService
-  ): temporal.api.workflowservice.v1.WorkflowService {
-    const wrapper: any = {};
-
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-    for (const [methodName, methodImpl] of Object.entries(workflowService) as [string, Function][]) {
-      if (typeof methodImpl !== 'function') continue;
-
-      wrapper[methodName] = (...args: any[]) => {
-        const namespace = args[0]?.namespace;
-        if (namespace) {
-          return this.withMetadata({ 'temporal-namespace': namespace }, () => methodImpl.apply(workflowService, args));
-        } else {
-          return methodImpl.apply(workflowService, args);
-        }
-      };
-    }
-    return wrapper as WorkflowService;
-  }
-}
-
-/**
- * Plugin to control the configuration of a connection.
- *
- * @experimental Plugins is an experimental feature; APIs may change without notice.
- */
-export interface ConnectionPlugin {
-  /**
-   * Gets the name of this plugin.
-   */
-  get name(): string;
-
-  /**
-   * Hook called when creating a connection to allow modification of configuration.
-   */
-  configureConnection?(options: ConnectionOptions): ConnectionOptions;
 }

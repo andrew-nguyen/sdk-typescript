@@ -1,7 +1,17 @@
-import type { ServiceError as GrpcServiceError } from '@grpc/grpc-js';
-import { status } from '@grpc/grpc-js';
 import type { RetryState } from '@temporalio/common';
 import { isError, isRecord, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
+import { grpcStatus as status, type grpcStatus } from './grpc-status';
+import type { MetadataValue } from './types';
+
+export interface ServiceErrorMetadata {
+  get(key: string): MetadataValue[];
+}
+
+export interface GrpcServiceError extends Error {
+  code: grpcStatus;
+  details: string;
+  metadata: ServiceErrorMetadata;
+}
 
 /**
  * Generic Error class for errors coming from the service

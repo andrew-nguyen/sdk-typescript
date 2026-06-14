@@ -2,7 +2,6 @@ import os from 'node:os';
 import type * as _grpc from '@grpc/grpc-js'; // For JSDoc only
 import type { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { isLoadedDataConverter, loadDataConverter } from '@temporalio/common/lib/internal-non-workflow';
-import { Connection } from './connection';
 import type { ConnectionLike, Metadata } from './types';
 
 export interface BaseClientOptions {
@@ -63,7 +62,7 @@ export class BaseClient {
   private readonly loadedDataConverter: LoadedDataConverter;
 
   protected constructor(options?: BaseClientOptions) {
-    this.connection = options?.connection ?? Connection.lazy();
+    this.connection = options?.connection ?? lazyDefaultConnection();
     const dataConverter = options?.dataConverter ?? {};
     this.loadedDataConverter = isLoadedDataConverter(dataConverter) ? dataConverter : loadDataConverter(dataConverter);
   }
@@ -119,4 +118,9 @@ export class BaseClient {
   protected get dataConverter(): LoadedDataConverter {
     return this.loadedDataConverter;
   }
+}
+
+function lazyDefaultConnection(): ConnectionLike {
+  const { Connection } = require('./connection') as typeof import('./connection');
+  return Connection.lazy();
 }

@@ -1,0 +1,154 @@
+{
+  "stage": "interview",
+  "title": "Cloudflare gRPC-Web Client Support",
+  "goalSlug": "cloudflare-grpc-web-support",
+  "questions": [
+    {
+      "id": "scope",
+      "prompt": "What should be in scope for this goal?",
+      "description": "The repo already separates client use from Worker-level Temporal runtime features. This goal can stay focused on the client transport or expand into broader runtime/protobuf work.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Implement Cloudflare Workers support for @temporalio/client by adding a gRPC-Web/fetch transport path, documenting how to use it, and adding automated checks that prevent Node gRPC from entering the Worker-safe path. Exclude running Temporal Workers in Cloudflare Workers and exclude a full protobuf runtime migration unless a small transport-required protobuf change is unavoidable.",
+      "recommendedOptionIds": ["client-transport", "docs", "worker-safe-checks"],
+      "options": [
+        {
+          "id": "client-transport",
+          "label": "@temporalio/client transport"
+        },
+        {
+          "id": "docs",
+          "label": "Docs and examples"
+        },
+        {
+          "id": "worker-safe-checks",
+          "label": "Worker-safe automated checks"
+        },
+        {
+          "id": "run-workers",
+          "label": "Run Temporal Workers"
+        },
+        {
+          "id": "full-protobuf-migration",
+          "label": "Full protobuf migration"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "api_shape",
+      "prompt": "How should users opt into the gRPC-Web transport?",
+      "description": "The current connection module imports Node gRPC at top level, so a Worker-compatible API likely needs a path that bundlers can load without Node-only dependencies.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Provide an explicit Worker-safe entry point or factory for gRPC-Web, such as a Cloudflare/fetch connection entry point, rather than relying only on runtime environment detection.",
+      "recommendedOptionIds": ["separate-entrypoint"],
+      "options": [
+        {
+          "id": "separate-entrypoint",
+          "label": "Separate Worker-safe entry point"
+        },
+        {
+          "id": "connection-option",
+          "label": "Connection option"
+        },
+        {
+          "id": "auto-detect",
+          "label": "Automatic detection"
+        },
+        {
+          "id": "custom-transport",
+          "label": "Custom transport injection"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "endpoint_expectation",
+      "prompt": "What endpoint should the gRPC-Web transport target?",
+      "description": "Cloudflare Workers can issue fetch requests, but gRPC-Web usually requires either a server that directly supports gRPC-Web or a proxy translating gRPC-Web to native gRPC.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Assume the SDK talks to a gRPC-Web compatible endpoint and clearly document that users may need a proxy in front of Temporal Server or Temporal Cloud if the target endpoint does not directly support gRPC-Web.",
+      "recommendedOptionIds": ["compatible-endpoint"],
+      "options": [
+        {
+          "id": "compatible-endpoint",
+          "label": "Require compatible endpoint"
+        },
+        {
+          "id": "built-in-proxy",
+          "label": "Build proxy support"
+        },
+        {
+          "id": "temporal-cloud-direct",
+          "label": "Temporal Cloud direct only"
+        },
+        {
+          "id": "self-hosted-direct",
+          "label": "Self-hosted direct only"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "behavior_parity",
+      "prompt": "Which existing client behaviors must work through gRPC-Web in the first pass?",
+      "description": "This helps define what success means beyond making one RPC work.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Support the client APIs that use unary service RPCs, preserve static metadata and API key headers, preserve deadlines/timeouts and abort cancellation where fetch supports them, and map gRPC-Web failures into the SDK's existing service error shape closely enough for existing retry/error helpers to keep working.",
+      "recommendedOptionIds": ["unary-client-rpcs", "metadata-auth", "deadline-abort", "error-mapping"],
+      "options": [
+        {
+          "id": "unary-client-rpcs",
+          "label": "Unary client RPCs"
+        },
+        {
+          "id": "metadata-auth",
+          "label": "Metadata and API keys"
+        },
+        {
+          "id": "deadline-abort",
+          "label": "Deadlines and aborts"
+        },
+        {
+          "id": "error-mapping",
+          "label": "Error and retry mapping"
+        },
+        {
+          "id": "test-service",
+          "label": "Test service support"
+        },
+        {
+          "id": "advanced-grpc-options",
+          "label": "Advanced grpc-js options"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "verification",
+      "prompt": "What verification should the final plan require?",
+      "description": "Automated checks can prove TypeScript behavior and bundling safety; a real Cloudflare deployment test may require credentials or extra infrastructure.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Require unit tests for request encoding, response decoding, metadata, deadlines/aborts, and error mapping; require a Worker-bundle smoke test that imports the Worker-safe entry point without Node gRPC dependencies; document a manual end-to-end check against a gRPC-Web compatible Temporal endpoint if CI cannot provide one.",
+      "recommendedOptionIds": ["unit-tests", "worker-bundle-smoke", "manual-e2e"],
+      "options": [
+        {
+          "id": "unit-tests",
+          "label": "Transport unit tests"
+        },
+        {
+          "id": "worker-bundle-smoke",
+          "label": "Worker bundle smoke test"
+        },
+        {
+          "id": "manual-e2e",
+          "label": "Manual endpoint check"
+        },
+        {
+          "id": "ci-cloudflare-e2e",
+          "label": "CI Cloudflare E2E"
+        }
+      ],
+      "required": true
+    }
+  ]
+}

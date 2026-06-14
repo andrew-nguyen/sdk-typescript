@@ -39,6 +39,8 @@
     "access": "public"
   },
   "files": [
+    "cloudflare.d.ts",
+    "cloudflare.js",
     "src",
     "lib"
   ],

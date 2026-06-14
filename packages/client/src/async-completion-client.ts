@@ -1,4 +1,3 @@
-import { status as grpcStatus } from '@grpc/grpc-js';
 import type { ActivitySerializationContext } from '@temporalio/common';
 import { ensureTemporalFailure } from '@temporalio/common';
 import { encodeErrorToFailure, encodeToPayloadsWithContext } from '@temporalio/common/lib/internal-non-workflow';
@@ -13,6 +12,7 @@ import {
   ActivityResetError,
   ActivityPausedError,
 } from './errors';
+import { grpcStatus } from './grpc-status';
 import type { WorkflowService } from './types';
 import { rethrowKnownErrorTypes } from './helpers';
 

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { status as grpcStatus } from '@grpc/grpc-js';
 import type {
   ActivityFunction,
   LoadedDataConverter,
@@ -67,6 +66,7 @@ import {
   ActivityExecutionFailedError,
   ActivityExecutionAlreadyStartedError,
 } from './errors';
+import { grpcStatus } from './grpc-status';
 
 /**
  * Options used to configure {@link ActivityClient}

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { status as grpcStatus } from '@grpc/grpc-js';
 import type { Workflow } from '@temporalio/common';
 import {
   decodeSearchAttributes,
@@ -22,6 +21,7 @@ import { SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers'
 import type { CreateScheduleInput, CreateScheduleOutput, ScheduleClientInterceptor } from './interceptors';
 import type { WorkflowService } from './types';
 import { isGrpcServiceError, ServiceError } from './errors';
+import { grpcStatus } from './grpc-status';
 import type {
   Backfill,
   CompiledScheduleUpdateOptions,

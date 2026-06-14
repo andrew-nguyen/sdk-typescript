@@ -1,4 +1,3 @@
-import type * as grpc from '@grpc/grpc-js';
 import type {
   TypedSearchAttributes,
   SearchAttributes,
@@ -10,7 +9,7 @@ import type {
 import { makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
 import * as proto from '@temporalio/proto';
 import type { Replace } from '@temporalio/common/lib/type-helpers';
-import type { ConnectionPlugin } from './connection';
+import type { ConnectionPlugin } from './connection-shared';
 
 export interface WorkflowExecution {
   workflowId: string;
@@ -108,7 +107,8 @@ export const { Health: HealthService } = proto.grpc.health.v1;
 /**
  * Mapping of string to valid gRPC metadata value
  */
-export type Metadata = Record<string, grpc.MetadataValue>;
+export type MetadataValue = string | Buffer;
+export type Metadata = Record<string, MetadataValue>;
 
 /**
  * User defined context for gRPC client calls
@@ -141,7 +141,7 @@ export interface ConnectionLike {
    *
    * The deadline is a point in time after which any pending gRPC request will be considered as failed;
    * this will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
-   * with code {@link grpc.status.DEADLINE_EXCEEDED|DEADLINE_EXCEEDED}; see {@link isGrpcDeadlineError}.
+   * with code DEADLINE_EXCEEDED; see {@link isGrpcDeadlineError}.
    *
    * It is stronly recommended to explicitly set deadlines. If no deadline is set, then it is
    * possible for the client to end up waiting forever for a response.
@@ -166,7 +166,7 @@ export interface ConnectionLike {
   /**
    * Set an {@link AbortSignal} that, when aborted, cancels any ongoing service requests executed in
    * `fn`'s scope. This will locally result in the request call throwing a {@link grpc.ServiceError|ServiceError}
-   * with code {@link grpc.status.CANCELLED|CANCELLED}; see {@link isGrpcCancelledError}.
+   * with code CANCELLED; see {@link isGrpcCancelledError}.
    *
    * @returns value returned from `fn`
    *

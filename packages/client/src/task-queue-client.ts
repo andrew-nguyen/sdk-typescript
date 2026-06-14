@@ -1,4 +1,3 @@
-import { status } from '@grpc/grpc-js';
 import type { RequireAtLeastOne } from '@temporalio/common/lib/type-helpers';
 import { assertNever, SymbolBasedInstanceOfError } from '@temporalio/common/lib/type-helpers';
 import { filterNullAndUndefined, makeProtoEnumConverters } from '@temporalio/common/lib/internal-workflow';
@@ -9,6 +8,7 @@ import type { WorkflowService } from './types';
 import type { BuildIdOperation, WorkerBuildIdVersionSets } from './build-id-types';
 import { versionSetsFromProto } from './build-id-types';
 import { isGrpcServiceError, ServiceError } from './errors';
+import { grpcStatus as status } from './grpc-status';
 import { rethrowKnownErrorTypes } from './helpers';
 
 type IUpdateWorkerBuildIdCompatibilityRequest =

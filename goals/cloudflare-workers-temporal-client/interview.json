@@ -1,0 +1,158 @@
+{
+  "stage": "interview",
+  "title": "Cloudflare Workers Temporal Client Compatibility",
+  "goalSlug": "cloudflare-workers-temporal-client",
+  "questions": [
+    {
+      "id": "first_goal_output",
+      "prompt": "What should this goal produce first?",
+      "description": "The repo already has started static-protobuf work and a separate gRPC-Web plan. Your current framing says the next step is choosing the best path before deeper implementation.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Produce a decision-ready plan that validates whether the remaining Cloudflare Workers blocker belongs at the protobuf layer, the gRPC/transport layer, or a small combination, then identifies the implementation path with concrete files and checks. Do not start broad implementation until that path is justified.",
+      "recommendedOptionIds": ["decision-plan"],
+      "options": [
+        {
+          "id": "decision-plan",
+          "label": "Decision plan first"
+        },
+        {
+          "id": "implement-after-plan",
+          "label": "Plan then implement"
+        },
+        {
+          "id": "grpc-web-now",
+          "label": "Implement gRPC-Web"
+        },
+        {
+          "id": "protobuf-now",
+          "label": "Continue protobuf only"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "drop_in_bar",
+      "prompt": "How strict should drop-in compatibility be for existing Temporal client users?",
+      "description": "Cloudflare-safe imports may require avoiding the current top-level Node gRPC import path. This choice affects whether we accept a Worker-specific connection import or require the normal package root to work unchanged.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Keep high-level Client and workflow APIs unchanged, preserve existing exported types where practical, and prefer the smallest Worker-specific connection construction or subpath needed to keep the fork easy to rebase. Treat unchanged root import and unchanged Connection construction as desirable but not mandatory if they force broad upstream divergence.",
+      "recommendedOptionIds": ["client-api-drop-in"],
+      "options": [
+        {
+          "id": "client-api-drop-in",
+          "label": "Client API unchanged"
+        },
+        {
+          "id": "root-import-drop-in",
+          "label": "Root import unchanged"
+        },
+        {
+          "id": "connection-drop-in",
+          "label": "Connection unchanged"
+        },
+        {
+          "id": "custom-transport-ok",
+          "label": "Custom transport OK"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "endpoint_constraint",
+      "prompt": "What endpoint assumption should the plan optimize for?",
+      "description": "Temporal docs describe native gRPC endpoints. gRPC-Web generally needs a compatible endpoint or proxy. If direct Temporal Cloud support is mandatory, the plan must prove it before choosing gRPC-Web.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Investigate and document direct Temporal Cloud and self-hosted Temporal support first. If native endpoints do not support gRPC-Web, allow a documented gRPC-Web proxy requirement rather than trying to make Cloudflare Workers speak native grpc-js.",
+      "recommendedOptionIds": ["investigate-then-proxy-ok"],
+      "options": [
+        {
+          "id": "investigate-then-proxy-ok",
+          "label": "Proxy acceptable"
+        },
+        {
+          "id": "temporal-cloud-direct-required",
+          "label": "Cloud direct required"
+        },
+        {
+          "id": "self-hosted-direct-required",
+          "label": "Self-hosted direct required"
+        },
+        {
+          "id": "undecided",
+          "label": "Need recommendation"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "scope_boundaries",
+      "prompt": "Which SDK surfaces are in scope for the first Cloudflare-compatible client goal?",
+      "description": "The README separates client-level features from Worker runtime features. Existing research also distinguishes SDK service protos from optional user payload protobuf converters.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Include @temporalio/client and the @temporalio/proto/common code paths required by client imports; include @temporalio/cloud only if it shares the same transport/proto blocker cheaply; exclude running Temporal Workers, Activities, Workflow sandbox code, Nexus Operations, and a full protobuf runtime migration unless required by the chosen client path.",
+      "recommendedOptionIds": ["client", "required-proto-common"],
+      "options": [
+        {
+          "id": "client",
+          "label": "@temporalio/client"
+        },
+        {
+          "id": "required-proto-common",
+          "label": "Required proto/common"
+        },
+        {
+          "id": "cloud",
+          "label": "@temporalio/cloud"
+        },
+        {
+          "id": "payload-protobufs",
+          "label": "Payload protobufs"
+        },
+        {
+          "id": "workers-runtime",
+          "label": "Temporal Workers"
+        },
+        {
+          "id": "full-proto-migration",
+          "label": "Full proto migration"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "verification_bar",
+      "prompt": "What verification must the plan require before this is considered done?",
+      "description": "Some checks can be automated locally; a real Cloudflare or endpoint test may need external credentials or infrastructure.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Require automated no-eval protobuf checks, Worker-safe import/bundle checks that prove Node gRPC is not loaded on the Cloudflare path, focused transport/proto unit tests for the chosen path, package build checks, and a documented manual end-to-end check against a real gRPC-Web compatible endpoint or direct endpoint if one is proven.",
+      "recommendedOptionIds": ["no-eval", "worker-import", "focused-tests", "package-builds", "manual-e2e"],
+      "options": [
+        {
+          "id": "no-eval",
+          "label": "No-eval checks"
+        },
+        {
+          "id": "worker-import",
+          "label": "Worker import check"
+        },
+        {
+          "id": "focused-tests",
+          "label": "Focused unit tests"
+        },
+        {
+          "id": "package-builds",
+          "label": "Package builds"
+        },
+        {
+          "id": "manual-e2e",
+          "label": "Manual E2E"
+        },
+        {
+          "id": "ci-cloudflare-e2e",
+          "label": "CI Cloudflare E2E"
+        }
+      ],
+      "required": true
+    }
+  ]
+}

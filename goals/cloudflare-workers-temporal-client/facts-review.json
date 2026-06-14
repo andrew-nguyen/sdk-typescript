@@ -1,0 +1,119 @@
+{
+  "stage": "facts",
+  "title": "Cloudflare Workers Temporal Client Compatibility",
+  "goalSlug": "cloudflare-workers-temporal-client",
+  "facts": [
+    {
+      "id": "fact-1",
+      "text": "The first output of this goal is a decision-ready implementation plan, not immediate feature implementation.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": false,
+      "automatedVerification": false
+    },
+    {
+      "id": "fact-2",
+      "text": "The plan must identify whether the best path forward is at the protobuf layer, the gRPC/transport layer, or a small combination of both.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": false,
+      "automatedVerification": false
+    },
+    {
+      "id": "fact-3",
+      "text": "The plan must evaluate gRPC-Web neutrally as one option among several paths, without assuming it is the solution or excluding it before the decision analysis.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": false,
+      "automatedVerification": false
+    },
+    {
+      "id": "fact-4",
+      "text": "The compatibility target is @temporalio/client plus the @temporalio/proto and @temporalio/common code paths required by that client surface.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-5",
+      "text": "Running Temporal Workers, Activities, Workflow sandbox code, Nexus Operations, or the Node-native Worker runtime inside Cloudflare Workers is out of scope.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": false,
+      "automatedVerification": false
+    },
+    {
+      "id": "fact-6",
+      "text": "The high-level @temporalio/client API must remain unchanged for application code that already uses Temporal client workflows.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-7",
+      "text": "The implementation path must keep this fork easy to rebase onto upstream by isolating fork-specific changes and avoiding broad rewrites of client APIs or generated protobuf surfaces.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": false,
+      "automatedVerification": false
+    },
+    {
+      "id": "fact-8",
+      "text": "The existing static-protobuf work must be evaluated as the current protobuf baseline and preserved if it solves the no-eval requirement without excessive upstream divergence.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-9",
+      "text": "Cloudflare-targeted client import and request paths must not rely on eval, new Function, Function constructors, or protobuf runtime reflection code generation.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-10",
+      "text": "The plan must investigate the current gRPC blockers in @temporalio/client, including @grpc/grpc-js, node:async_hooks, connection construction, retry helpers, metadata, deadlines, aborts, and service error mapping.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": false,
+      "automatedVerification": false
+    },
+    {
+      "id": "fact-11",
+      "text": "The chosen path must preserve metadata, API key authorization, deadlines or timeouts, abort cancellation, retry behavior, and service error helper compatibility for supported unary client RPCs.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-12",
+      "text": "Automated verification must include a Worker-safe import or bundle check proving the Cloudflare-targeted client path does not load @grpc/grpc-js or other Node gRPC transport code.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-13",
+      "text": "Automated verification must include focused tests for whichever protobuf and transport path the plan selects, plus relevant package build checks.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-14",
+      "text": "The final plan must include a manual end-to-end verification path for a real Cloudflare-compatible Temporal client connection, even if CI cannot run that check.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": false,
+      "automatedVerification": false
+    }
+  ]
+}

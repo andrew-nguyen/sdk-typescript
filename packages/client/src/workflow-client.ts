@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { status as grpcStatus } from '@grpc/grpc-js';
 import type {
   BaseWorkflowHandle,
   HistoryAndWorkflowId,
@@ -50,6 +49,7 @@ import {
   WorkflowUpdateRPCTimeoutOrCancelledError,
   isGrpcServiceError,
 } from './errors';
+import { grpcStatus } from './grpc-status';
 import type {
   WorkflowCancelInput,
   WorkflowClientInterceptor,
