@@ -123,7 +123,6 @@ export class BaseClient {
 function lazyDefaultConnection(): ConnectionLike {
   // Keep the default Node connection path available for Node callers without
   // making Cloudflare-only bundles statically include grpc-js.
-  const connectionModule = './connection';
-  const { Connection } = require(connectionModule) as typeof import('./connection');
+  const { Connection } = module.require('./connection') as typeof import('./connection');
   return Connection.lazy();
 }
